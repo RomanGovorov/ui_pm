@@ -1,0 +1,89 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { taskService } from '@/lib/services/task-service';
+import { handleApiError } from '@/lib/errors';
+import { z } from 'zod';
+
+const uuidSchema = z.string().uuid();
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const parsed = uuidSchema.safeParse(id);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'Invalid task ID' } },
+        { status: 400 },
+      );
+    }
+    const task = await taskService.getById(parsed.data);
+    // PERF-OPT-003: Explicit no-cache to prevent proxy/browser caching of dynamic data
+    return NextResponse.json(task, {
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+    });
+  } catch (error) {
+    const { statusCode, body } = handleApiError(error);
+    return NextResponse.json(body, { status: statusCode });
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const parsed = uuidSchema.safeParse(id);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'Invalid task ID' } },
+        { status: 400 },
+      );
+    }
+    const body = await request.json();
+    const validated = taskService.updateSchema.safeParse(body);
+    if (!validated.success) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid input',
+            details: validated.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          },
+        },
+        { status: 400 },
+      );
+    }
+    const task = await taskService.update(parsed.data, validated.data);
+    return NextResponse.json(task);
+  } catch (error) {
+    const { statusCode, body } = handleApiError(error);
+    return NextResponse.json(body, { status: statusCode });
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const parsed = uuidSchema.safeParse(id);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'Invalid task ID' } },
+        { status: 400 },
+      );
+    }
+    const task = await taskService.delete(parsed.data);
+    return NextResponse.json(task);
+  } catch (error) {
+    const { statusCode, body } = handleApiError(error);
+    return NextResponse.json(body, { status: statusCode });
+  }
+}

@@ -1,0 +1,19 @@
+node_modules
+.next
+.git
+.env
+.env.local
+.env.production
+*.md
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Non-application directories
+docs/
+tasks/
+scripts/
+data/
+.qwen/
+.github/
+test/

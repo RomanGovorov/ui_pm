@@ -1,0 +1,1621 @@
+openapi: "3.0.3"
+info:
+  title: Project Manager UI API
+  description: |
+    REST API for the Project Manager UI — a real-time project management dashboard
+    for stakeholders and AI agents. Built with Next.js 15, PostgreSQL 16, Prisma, and SSE.
+
+    **Base URL**: `http://localhost:3000/api` (local) or your deployment host.
+
+    **Authentication** (dual):
+    - **Agent access**: `X-API-Key` header (see [ApiKeyAuth](#/components/securitySchemes/ApiKeyAuth))
+    - **Browser user access**: `auth_token` cookie set by login/register (see [CookieAuth](#/components/securitySchemes/CookieAuth))
+    
+    Write operations (POST, PUT, DELETE) require authentication. Read operations (GET) 
+    are publicly accessible for backward compatibility (planned enforcement in v2).
+
+    The SSE endpoint (`/api/events`) requires authentication as of v1.1.0.
+  version: "1.1.0"
+  contact:
+    name: Project Manager UI Team
+    url: https://github.com/gansru/ui_pm
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://your-domain.com/api
+    description: Production server
+
+tags:
+  - name: auth
+    description: Authentication operations (register, login, logout, current user)
+  - name: projects
+    description: Project management operations
+  - name: tasks
+    description: Task management operations
+  - name: users
+    description: User management operations
+  - name: events
+    description: Real-time Server-Sent Events stream
+  - name: health
+    description: Health check endpoint
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for AI agent authentication. Valid for all authenticated operations.
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token
+      description: JWT cookie for browser user authentication. Set automatically by login/register endpoints. httpOnly, sameSite=lax, 7-day expiry.
+
+    # ─── Request Payloads ───
+    RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+        - confirmPassword
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Display name (required)
+          example: "Roman Govorov"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Email address (must not already exist)
+          example: "roman@example.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: Password (min 8 characters, cannot be a common password)
+          example: "MyStr0ng!P@ss"
+        confirmPassword:
+          type: string
+          minLength: 1
+          description: Must match the password field
+          example: "MyStr0ng!P@ss"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Registered email address
+          example: "roman@example.com"
+        password:
+          type: string
+          minLength: 1
+          description: Account password
+          example: "MyStr0ng!P@ss"
+
+    AuthUserResponse:
+      type: object
+      required:
+        - user
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+
+    AuthUser:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+        name:
+          type: string
+          maxLength: 100
+          description: Display name
+        email:
+          type: string
+          format: email
+          description: Email address
+        role:
+          type: string
+          enum:
+            - admin
+            - stakeholder
+          description: User role (agent role is only used for API key auth, not JWT)
+      description: |
+        Authenticated user data returned after successful login or registration.
+        The `role` determines UI permissions and API access:
+        - `admin`: Full read/write access, can manage users
+        - `stakeholder`: Read-only access to dashboard and projects
+    GenericMessage:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Human-readable message
+      description: |
+        Generic response used for anti-enumeration on registration.
+        Returned when the email already exists — does NOT reveal whether
+        the account was registered. No session/cookie is created.
+    LogoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Confirmation message
+          example: "Logged out successfully"
+
+  schemas:
+    # ---- Error Schemas ----
+    ErrorBody:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorResponse"
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          examples:
+            - VALIDATION_ERROR
+            - NOT_FOUND
+            - CONFLICT
+            - UNAUTHORIZED
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+        message:
+          type: string
+          description: Human-readable error description
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+                description: Dot-path of the invalid field
+              message:
+                type: string
+                description: Validation error message
+          description: Detailed validation errors (present only for VALIDATION_ERROR)
+
+    ValidationErrorDetail:
+      type: object
+      properties:
+        path:
+          type: string
+        message:
+          type: string
+
+    # ---- Response Wrappers ----
+    PaginatedResponseProject:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+        total:
+          type: integer
+          description: Total number of records returned
+
+    PaginatedResponseTask:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+        total:
+          type: integer
+          description: Total number of records returned
+
+    PaginatedResponseUser:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+          description: Total number of records returned
+
+    # ---- Entity Schemas ----
+    Project:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique project identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          maxLength: 255
+          description: Project name
+          example: "AI Education Platform"
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Optional project description
+          example: "Building an AI-powered education tool"
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 last update timestamp
+        _count:
+          type: object
+          description: Related entity counts
+          properties:
+            tasks:
+              type: integer
+        subprojects:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subproject"
+          description: Associated subprojects (returned by GET /{id} only)
+
+    Subproject:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    Task:
+      type: object
+      required:
+        - id
+        - projectId
+        - title
+        - status
+        - priority
+        - assignee
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique task identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        projectId:
+          type: string
+          format: uuid
+          description: Associated project ID
+        subprojectId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated subproject ID (optional)
+        title:
+          type: string
+          maxLength: 200
+          description: Task title
+          example: "Implement login page"
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Detailed task description
+        status:
+          type: string
+          enum:
+            - in_work
+            - review
+            - done
+          description: Current workflow status
+          example: "in_work"
+        priority:
+          type: string
+          enum:
+            - high
+            - medium
+            - low
+          description: Task priority level
+          example: "medium"
+        assignee:
+          type: string
+          maxLength: 100
+          description: Name of assigned user
+          example: "Roman Govorov"
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 last update timestamp
+
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - role
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+        name:
+          type: string
+          maxLength: 100
+          description: Display name
+          example: "Roman Govorov"
+        role:
+          type: string
+          enum:
+            - stakeholder
+            - agent
+          description: User role
+          example: "stakeholder"
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 creation timestamp
+
+    # ---- Request Payloads ----
+    CreateProjectRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Project name (required)
+          example: "New Initiative"
+        description:
+          type: string
+          maxLength: 2000
+          description: Optional project description
+          example: "Building something great"
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Updated project name
+          example: "Renamed Initiative"
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Updated or cleared description
+          example: "Updated description"
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - projectId
+        - title
+        - assignee
+      properties:
+        projectId:
+          type: string
+          format: uuid
+          description: UUID of the parent project
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        subprojectId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional subproject assignment
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Task title (required)
+          example: "Implement authentication flow"
+        description:
+          type: string
+          maxLength: 2000
+          description: Optional task description
+        priority:
+          type: string
+          enum:
+            - high
+            - medium
+            - low
+          default: medium
+          description: Task priority (defaults to medium)
+          example: "high"
+        assignee:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Assignee display name (required)
+          example: "Agent-T67"
+        status:
+          type: string
+          enum:
+            - in_work
+            - review
+            - done
+          default: in_work
+          description: Task initial status (defaults to in_work)
+          example: "in_work"
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Updated title
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Updated or cleared description
+        status:
+          type: string
+          enum:
+            - in_work
+            - review
+            - done
+          description: Updated status
+        priority:
+          type: string
+          enum:
+            - high
+            - medium
+            - low
+          description: Updated priority
+        assignee:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Updated assignee name
+        projectId:
+          type: string
+          format: uuid
+          description: Updated project assignment (valid UUID)
+        subprojectId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Updated subproject assignment
+
+    CreateUserRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: User display name (required)
+          example: "Jane Smith"
+        role:
+          type: string
+          enum:
+            - stakeholder
+            - agent
+          default: stakeholder
+          description: User role (defaults to stakeholder)
+        apiKey:
+          type: string
+          minLength: 32
+          maxLength: 255
+          description: Optional API key for agent authentication
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          description: Application version (from APP_VERSION env var)
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum:
+                - connected
+                - disconnected
+
+paths:
+  # ============================================================
+  # AUTH — /api/auth (Register, Login, Logout, Current User)
+  # ============================================================
+
+  /auth/register:
+    post:
+      tags:
+        - auth
+      summary: Register a new user account
+      description: |
+        Creates a new user account with email/password authentication. Returns a JWT in an httpOnly cookie 
+        for browser-session access. On successful registration, the user is automatically authenticated.
+        
+        **Anti-enumeration**: If the email already exists, returns `200` with a generic message (no cookie set).
+        This prevents attackers from discovering which emails are registered.
+        
+        **Rate limiting**: Registration endpoint is rate-limited globally (100 req/min/IP).
+        
+        **Password requirements**: Min 8 characters, max 128 characters. Common passwords from known breaches are rejected.
+        
+        Requires `REGISTRATION_ENABLED=true` (default). Set to `'false'` to disable open registration.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            examples:
+              valid:
+                summary: Valid registration
+                value:
+                  name: "Roman Govorov"
+                  email: "roman@example.com"
+                  password: "MyStr0ng!P@ss"
+                  confirmPassword: "MyStr0ng!P@ss"
+              weak_password:
+                summary: Rejected common password
+                value:
+                  name: "Roman Govorov"
+                  email: "roman@example.com"
+                  password: "password123"
+                  confirmPassword: "password123"
+              mismatched:
+                summary: Passwords do not match
+                value:
+                  name: "Roman Govorov"
+                  email: "roman@example.com"
+                  password: "MyStr0ng!P@ss"
+                  confirmPassword: "Different123"
+      responses:
+        "201":
+          description: Account created successfully. JWT cookie set for immediate login.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "auth_token=eyJ...; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserResponse"
+              example:
+                user:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  name: "Roman Govorov"
+                  email: "roman@example.com"
+                  role: stakeholder
+        "200":
+          description: |
+            Email already exists — anti-enumeration response. No cookie is set and no session is created.
+            The user should navigate to `/login` instead.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessage"
+              example:
+                message: "If an account with this email exists, you can sign in at /login"
+        "400":
+          description: Validation error — invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              examples:
+                validation_error:
+                  summary: Field validation failure
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Invalid input
+                      details:
+                        - path: "email"
+                          message: "Invalid email format"
+                common_password:
+                  summary: Password too common
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Invalid input
+                      details:
+                        - path: "password"
+                          message: "This password is too common. Please choose a stronger password."
+                password_mismatch:
+                  summary: Passwords do not match
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Invalid input
+                      details:
+                        - path: "confirmPassword"
+                          message: "Passwords do not match"
+        "403":
+          description: Registration is disabled (`REGISTRATION_ENABLED=false`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                error:
+                  code: REGISTRATION_DISABLED
+                  message: "Registration is currently disabled"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: Authenticate user and create session
+      description: |
+        Authenticates a user with email/password. Returns a JWT in an httpOnly cookie that 
+        is automatically sent with subsequent requests for 7 days.
+        
+        **Security notes**:
+        - Rate limited on *failed* attempts only (successful logins don't consume quota): 10 failures/min/IP
+        - Generic error message regardless of whether the email exists or the password is wrong
+        - Audit-logged for security monitoring
+        
+        CORS: Credentials enabled when `origin` matches `CORS_ALLOWED_ORIGINS`. Clients must use 
+        `credentials: 'include'` or `credentials: 'same-origin'` in fetch requests.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              valid:
+                summary: Valid credentials
+                value:
+                  email: "roman@example.com"
+                  password: "MyStr0ng!P@ss"
+              empty_email:
+                summary: Missing email
+                value:
+                  email: ""
+                  password: "MyStr0ng!P@ss"
+      responses:
+        "200":
+          description: Login successful. JWT cookie set.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "auth_token=eyJ...; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserResponse"
+              example:
+                user:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  name: "Roman Govorov"
+                  email: "roman@example.com"
+                  role: stakeholder
+        "400":
+          description: Validation error — invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Invalid input
+                  details:
+                    - path: "email"
+                      message: "Invalid email format"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                error:
+                  code: INVALID_CREDENTIALS
+                  message: Invalid email or password
+        "429":
+          description: Too many failed login attempts. Wait and retry.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                description: Seconds until the rate limit window resets
+                example: 60
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                error:
+                  code: RATE_LIMITED
+                  message: "Too many failed login attempts. Please try again later."
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      summary: End current session
+      description: |
+        Clears the `auth_token` cookie, effectively ending the browser session. 
+        Audit-logged if the user was authenticated.
+        
+        Best effort — if the API call fails, the local session state should be cleared 
+        client-side regardless (the cookie expires on next page navigation anyway).
+      operationId: logoutUser
+      responses:
+        "200":
+          description: Logged out successfully. Cookie cleared.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "auth_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+              example:
+                message: "Logged out successfully"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /auth/me:
+    get:
+      tags:
+        - auth
+      summary: Get current authenticated user
+      description: |
+        Returns the currently authenticated user's profile by verifying the JWT cookie 
+        and fetching fresh data from the database. Uses the latest DB record so role 
+        changes (admin ↔ stakeholder) take effect immediately.
+        
+        Falls back to stale JWT payload data if the database is unavailable.
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: Authenticated user data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserResponse"
+              example:
+                user:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  name: "Roman Govorov"
+                  email: "roman@example.com"
+                  role: stakeholder
+        "401":
+          description: Not authenticated (missing or invalid JWT cookie)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: Not authenticated
+
+  # ============================================================
+  # PROJECTS — /api/projects
+  # ============================================================
+
+  /projects:
+    get:
+      tags:
+        - projects
+      summary: List all projects
+      description: |
+        Returns a paginated list of all projects, ordered alphabetically by name.
+        Each project includes a `_count.tasks` field showing the number of associated tasks.
+      operationId: listProjects
+      responses:
+        "200":
+          description: A list of projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponseProject"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    name: "AI Education Platform"
+                    description: "Building an AI-powered education tool"
+                    createdAt: "2026-08-01T10:00:00.000Z"
+                    updatedAt: "2026-08-10T14:30:00.000Z"
+                    _count: { tasks: 12 }
+                total: 1
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+    post:
+      tags:
+        - projects
+      summary: Create a new project
+      description: |
+        Creates a new project with the given name and optional description.
+        Requires API key authentication. Emits a `project_created` SSE event.
+      operationId: createProject
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+            example:
+              name: "New Initiative"
+              description: "A brand new project"
+      responses:
+        "201":
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Validation error or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "409":
+          description: Unique constraint violation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /projects/{id}:
+    get:
+      tags:
+        - projects
+      summary: Get project by ID
+      description: |
+        Returns a single project by its UUID. Includes subprojects and task count.
+        No authentication required.
+      operationId: getProjectById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the project
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Project details including subprojects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+    put:
+      tags:
+        - projects
+      summary: Update a project
+      description: |
+        Updates existing project fields. Only provided fields are modified.
+        Partial updates are supported (omit fields you don't want to change).
+        Requires API key authentication. Emits a `project_updated` SSE event.
+      operationId: updateProject
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the project to update
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+            example:
+              name: "Updated Project Name"
+              description: "New description text"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Validation error or invalid ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+    delete:
+      tags:
+        - projects
+      summary: Delete a project
+      description: |
+        Permanently deletes a project and all its associated tasks.
+        Requires API key authentication. Emits a `project_deleted` SSE event.
+      operationId: deleteProject
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the project to delete
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Project deleted successfully (returns `{ id }`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+        "400":
+          description: Invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "409":
+          description: Foreign key constraint (tasks reference this project)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  # ============================================================
+  # TASKS — /api/tasks
+  # ============================================================
+
+  /tasks:
+    get:
+      tags:
+        - tasks
+      summary: List tasks
+      description: |
+        Returns a filtered list of tasks. Supports query parameters for filtering.
+        Tasks are ordered by priority (high first), then creation date (newest first).
+        No authentication required.
+      operationId: listTasks
+      parameters:
+        - name: projectId
+          in: query
+          description: Filter by project UUID
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by task status
+          required: false
+          schema:
+            type: string
+            enum:
+              - in_work
+              - review
+              - done
+      responses:
+        "200":
+          description: A list of tasks matching filters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponseTask"
+              example:
+                data:
+                  - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    projectId: "550e8400-e29b-41d4-a716-446655440000"
+                    subprojectId: null
+                    title: "Implement login flow"
+                    description: "OAuth2 + JWT implementation"
+                    status: in_work
+                    priority: high
+                    assignee: "Agent-T67"
+                    createdAt: "2026-08-01T10:00:00.000Z"
+                    updatedAt: "2026-08-10T12:00:00.000Z"
+                total: 1
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+    post:
+      tags:
+        - tasks
+      summary: Create a new task
+      description: |
+        Creates a new task within a project. Priority defaults to `medium`. Status defaults to `in_work` but can be set explicitly via the `status` field (one of: `in_work`, `review`, `done`).
+        Requires API key authentication. Emits a `task_created` SSE event.
+      operationId: createTask
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+            example:
+              projectId: "550e8400-e29b-41d4-a716-446655440000"
+              title: "Implement authentication flow"
+              description: "JWT tokens + refresh tokens"
+              priority: high
+              status: review
+              assignee: "Agent-T67"
+      responses:
+        "201":
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Validation error or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "409":
+          description: Foreign key constraint (invalid project ID)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /tasks/{id}:
+    get:
+      tags:
+        - tasks
+      summary: Get task by ID
+      description: |
+        Returns a single task by its UUID. Includes full details.
+        No authentication required.
+      operationId: getTaskById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the task
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+    put:
+      tags:
+        - tasks
+      summary: Update a task
+      description: |
+        Updates existing task fields. Only provided fields are modified.
+        Partial updates are supported. Status transitions follow the Kanban flow:
+        `in_work` → `review` → `done`.
+        Requires API key authentication. Emits a `task_updated` SSE event.
+      operationId: updateTask
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the task to update
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+            example:
+              status: review
+              priority: high
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Validation error or empty update payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+    delete:
+      tags:
+        - tasks
+      summary: Delete a task
+      description: |
+        Permanently deletes a task. Requires API key authentication.
+        Emits a `task_deleted` SSE event.
+      operationId: deleteTask
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the task to delete
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Task deleted successfully (returns `{ id }`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+        "400":
+          description: Invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  # ============================================================
+  # SUBTASKS — /api/projects/{id}/tasks
+  # ============================================================
+
+  /projects/{id}/tasks:
+    get:
+      tags:
+        - tasks
+      summary: List tasks for a project
+      description: |
+        Returns all tasks belonging to a specific project.
+        No authentication required. Useful for fetching project-specific task lists.
+      operationId: listTasksByProject
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the parent project
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: A list of tasks for the project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponseTask"
+        "400":
+          description: Invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  # ============================================================
+  # USERS — /api/users
+  # ============================================================
+
+  /users:
+    get:
+      tags:
+        - users
+      summary: List users
+      description: |
+        Returns a list of all users, ordered alphabetically by name.
+        API keys are intentionally excluded from the response for security.
+        No authentication required.
+      operationId: listUsers
+      responses:
+        "200":
+          description: A list of users (without API keys)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponseUser"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    name: "Roman Govorov"
+                    role: stakeholder
+                    createdAt: "2026-08-01T10:00:00.000Z"
+                  - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    name: "Agent-T67"
+                    role: agent
+                    createdAt: "2026-08-01T10:00:00.000Z"
+                total: 2
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+    post:
+      tags:
+        - users
+      summary: Create a user
+      description: |
+        Creates a new user account. An optional API key can be provided for agent accounts.
+        Requires API key authentication.
+      operationId: createUser
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+            example:
+              name: "Jane Smith"
+              role: stakeholder
+      responses:
+        "201":
+          description: User created successfully (excludes API key from response)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "409":
+          description: Duplicate user (unique constraint on name)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  # ============================================================
+  # EVENTS (SSE) — /api/events
+  # ============================================================
+
+  /events:
+    get:
+      tags:
+        - events
+      summary: Server-Sent Events (SSE) stream
+      description: |
+        Opens a persistent SSE connection for real-time updates. Emits events
+        for all task and project changes across the system. No authentication required
+        (read-only endpoint intended for dashboards).
+
+        **Connection limits:** Max 50 connections overall, max 10 per IP.
+        Heartbeat sent every 30 seconds to keep the connection alive.
+
+        **Event types:**
+        - `task_created`, `task_updated`, `task_deleted`
+        - `project_created`, `project_updated`, `project_deleted`
+
+        **Usage (JavaScript):**
+        ```javascript
+        const es = new EventSource('http://localhost:3000/api/events');
+        es.addEventListener('task_created', (event) => {
+          console.log(JSON.parse(event.data));
+        });
+        ```
+      operationId: getSSEStream
+      responses:
+        "200":
+          description: SSE stream established
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: ": heartbeat\n\nevent: task_created\ndata: {\"id\":\"...\",\"title\":\"...\"}\n\n"
+        "503":
+          description: SSE connection limit reached
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        example: TOO_MANY_CONNECTIONS
+                      message:
+                        type: string
+                        example: SSE connection limit reached
+
+  # ============================================================
+  # HEALTH — /api/health
+  # ============================================================
+
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check
+      description: |
+        Returns the health status of the application. Used by Docker healthcheck,
+        Kubernetes probes, and external monitoring systems. No authentication required.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+                timestamp: "2026-08-13T12:00:00.000Z"
+                version: "abc12345"
+                checks:
+                  database: connected
+        "503":
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: unhealthy
+                timestamp: "2026-08-13T12:00:00.000Z"
+                checks:
+                  database: disconnected
+                  error: internal_error
+
