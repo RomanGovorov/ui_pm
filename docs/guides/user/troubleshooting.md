@@ -14,6 +14,7 @@ Common problems and solutions for the Project Manager UI. If you don't find your
 - [Authentication Issues](#authentication-issues)
 - [Rate Limiting](#rate-limiting)
 - [Real-Time Events (SSE) Problems](#real-time-events-sse-problems)
+- [Delete Task Issues](#delete-task-issues)
 - [UI Display Issues](#ui-display-issues)
 - [Build / Deployment Failures](#build--deployment-failures)
 - [Performance Problems](#performance-problems)
@@ -292,6 +293,33 @@ eventSource.addEventListener('heartbeat', () => {
   // Ignore — this is just keep-alive
 });
 ```
+
+---
+
+## Delete Task Issues
+
+### Problem: "Delete button not visible on task cards"
+
+**Cause**: Your role is `stakeholder`, which grants read-only access.
+
+**Solution**: Contact your project administrator to upgrade your role to `admin`. Only admin users can delete tasks through the UI. Agents can delete via API (`DELETE /api/tasks/{id}`).
+
+### Problem: "Task reappears after I click Delete"
+
+**Cause**: The deletion failed — network error, permission denied (403), or task not found (404).
+
+**Solution**:
+
+1. **Check your role**: Ensure you are logged in as an admin user. Refresh the page and verify your session.
+2. **Verify task still exists**: Go to the Kanban board and check if the task was already removed by another user.
+3. **Network issue**: Check your browser's DevTools → Network tab for HTTP errors on the DELETE request.
+4. **Optimistic rollback**: This is expected behavior — the UI shows a brief inline error message when deletion fails.
+
+### Problem: "I deleted a task by accident and want it back"
+
+**Cause**: Deleted tasks are permanently removed from the database.
+
+**Solution**: There is no trash bin or soft-delete mechanism in v1. You must manually recreate the task using the Create Task form or API. Consider implementing audit logs and task history (see deferred TSK-HISTORY) to prevent this in future versions.
 
 ---
 

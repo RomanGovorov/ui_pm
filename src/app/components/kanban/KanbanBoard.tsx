@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useAppContext } from '@/lib/context/app-context';
 import { KanbanColumn } from './KanbanColumn';
 import { EditTaskModal } from '@/app/components/modals/EditTaskModal';
+import { DeleteTaskModal } from '@/app/components/modals/DeleteTaskModal';
 import type { Task, TaskStatus } from '@/lib/types';
 
 const COLUMNS: { status: TaskStatus; title: string; color: string }[] = [
@@ -17,8 +18,9 @@ const COLUMNS: { status: TaskStatus; title: string; color: string }[] = [
  * UI-008: Shows skeleton loading state.
  */
 export function KanbanBoard() {
-  const { tasks, currentProjectId, loading } = useAppContext();
+  const { tasks, currentProjectId, loading, deleteTask } = useAppContext();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
 
   const handleEdit = useCallback((task: Task) => {
     setEditingTask(task);
@@ -27,6 +29,21 @@ export function KanbanBoard() {
   const handleCloseEdit = useCallback(() => {
     setEditingTask(null);
   }, []);
+
+  const handleDelete = useCallback((task: Task) => {
+    setDeletingTask(task);
+  }, []);
+
+  const handleCloseDelete = useCallback(() => {
+    setDeletingTask(null);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deletingTask) return;
+    const taskId = deletingTask.id;
+    setDeletingTask(null);
+    await deleteTask(taskId);
+  }, [deletingTask, deleteTask]);
 
   // PERF-OPT-001: Single-pass grouping via for..of instead of 3× .filter().
   // Reduces array iterations from 4n to 2n (1 filter + 1 loop).
@@ -85,10 +102,19 @@ export function KanbanBoard() {
           color={col.color}
           tasks={grouped[col.status]}
           onEdit={handleEdit}
+          onDelete={handleDelete}
         />
       ))}
       {editingTask && (
         <EditTaskModal task={editingTask} onClose={handleCloseEdit} />
+      )}
+      {deletingTask && (
+        <DeleteTaskModal
+          task={deletingTask}
+          isOpen={!!deletingTask}
+          onClose={handleCloseDelete}
+          onConfirm={handleDeleteConfirm}
+        />
       )}
     </div>
   );

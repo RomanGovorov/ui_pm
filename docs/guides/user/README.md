@@ -10,7 +10,7 @@ This directory contains user-friendly guides for stakeholders and agents using t
 |-------|-------------|----------|
 | [Getting Started](getting-started.md) | Installation, first-time setup, authentication, and basic usage walkthrough | All users |
 | [Authentication](authentication.md) | Login, registration, roles, sessions, and permissions | Stakeholders, admins |
-| [Troubleshooting](troubleshooting.md) | Common problems, error messages, and solutions | All users |
+| [Troubleshooting](troubleshooting.md) | Common problems, error messages, and solutions — includes Delete Task Issues section | All users |
 
 ## Quick Navigation
 

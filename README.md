@@ -197,6 +197,19 @@ ui_pm/
 - Docker: non-root user, multi-stage build
 - PostgreSQL port not exposed to host (internal network only)
 
+## Testing
+
+- **Test framework**: Vitest with jsdom environment
+- **Test location**: `src/lib/__tests__/` and `src/test/`
+- **Coverage**: DELETE `/api/tasks/:id` endpoint fully covered (22 tests)
+  - Static analysis of route handler structure
+  - UUID validation (Zod schemas)
+  - Prisma error mapping (P2025 → 404)
+  - SSE event emission (`task_deleted`)
+  - Middleware authentication (dual auth: JWT + API key)
+- **Run tests**: `npm test` or `npm run test:watch`
+- **Path alias**: `@/` maps to `src/`
+
 ## Accessibility
 
 - WCAG 2.1 AA compliant

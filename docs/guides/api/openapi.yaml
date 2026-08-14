@@ -1352,6 +1352,7 @@ paths:
       operationId: deleteTask
       security:
         - ApiKeyAuth: []
+        - CookieAuth: []
       parameters:
         - name: id
           in: path
@@ -1378,7 +1379,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorBody"
         "401":
-          description: Missing or invalid API key
+          description: Missing or invalid API key / JWT cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "403":
+          description: Forbidden — stakeholder role cannot delete tasks
           content:
             application/json:
               schema:

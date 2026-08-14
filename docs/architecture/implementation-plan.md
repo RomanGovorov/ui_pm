@@ -1,9 +1,9 @@
 # Implementation Plan — Project Manager UI v1
 
-**Version:** 1.3
+**Version:** 1.5
 **Author:** architecture-planner
 **Date:** 2026-08-13
-**Updated:** 2026-08-14 — Phase 6 updated with TSK-018 Phase 1 audit findings: 10 security + 13 UI/UX must-fix items
+**Updated:** 2026-08-14 — Phase 8 added: TSK-021 Delete task button in UI
 
 ---
 
@@ -182,6 +182,76 @@ The implementation is divided into 5 phases, ordered by dependency. Each phase p
 
 ---
 
+### Phase 7: DELETE Endpoint Tests & Docs (TSK-020)
+**Goal:** Comprehensive test coverage for DELETE `/api/tasks/[id]` and complete API documentation. No new endpoint implementation — the DELETE handler already exists and works.
+
+**Prerequisites:** Phases 1–6 complete (endpoint functional, auth working, SSE active).
+
+| Step | Task | Output | Test Pattern |
+|---|---|---|---|
+| 7.1 | Write static analysis test: verify DELETE handler exports in route file | `task-delete-api.test.ts` | `fs.readFileSync` + `toContain('export async function DELETE')` |
+| 7.2 | Write static analysis test: verify UUID validation via `uuidSchema.safeParse` in DELETE handler | `task-delete-api.test.ts` | Source code pattern check |
+| 7.3 | Write static analysis test: verify `handleApiError` import and usage in DELETE handler | `task-delete-api.test.ts` | Source code pattern check |
+| 7.4 | Write unit test: `handleApiError` maps Prisma P2025 to 404 NOT_FOUND (covers delete-not-found case) | `task-delete-api.test.ts` | Direct function call with mock Prisma error |
+| 7.5 | Write unit test: UUID validation rejects non-UUID strings (empty, `not-a-uuid`, SQL injection attempt) | `task-delete-api.test.ts` | `uuidSchema.safeParse()` direct call |
+| 7.6 | Write unit test: event bus emits `task_deleted` with `{ id }` payload | `task-delete-api.test.ts` | `eventBus.emitTaskEvent` + listener verification |
+| 7.7 | Write static analysis test: middleware includes `DELETE` in `isWrite` methods array | `task-delete-api.test.ts` | Middleware source check |
+| 7.8 | Write static analysis test: middleware returns 403 for stakeholder role on write operations | `task-delete-api.test.ts` | Middleware source check for `stakeholder` + `FORBIDDEN` |
+| 7.9 | Verify OpenAPI spec already includes DELETE `/tasks/{id}` operation — add `CookieAuth` security scheme alongside `ApiKeyAuth` if missing | `openapi.yaml` | Manual review + edit |
+| 7.10 | Run full test suite to ensure no regressions | `npm test` passes | — |
+
+**Test strategy:**
+- Tests follow existing patterns in `api-integration-tests.test.ts` (static analysis) and `errors.test.ts` (unit tests)
+- No HTTP server required — Vitest + jsdom environment
+- Prisma errors simulated via `Prisma.PrismaClientKnownRequestError` constructor or `handleApiError` directly
+- SSE event emission tested via `eventBus` listener pattern
+- Middleware auth behavior verified via source code static analysis (consistent with existing tests)
+
+**Acceptance:**
+- All 6 test scenarios pass (happy path, invalid UUID, not found, 401, 403, SSE event)
+- Static analysis confirms consistent patterns (handleApiError, safeParse, isWrite)
+- OpenAPI spec accurately documents DELETE with both auth methods
+- All existing tests still pass
+- Coverage remains > 80%
+
+### Phase 8: Delete Task Button in UI (TSK-021)
+**Goal:** Admin-only delete button on TaskCard with confirmation modal, optimistic update, and error rollback. No backend changes — the DELETE endpoint already exists (TSK-020).
+
+**Prerequisites:** Phases 1–7 complete (endpoint working, auth working, SSE active, edit modal pattern established).
+
+| Step | Task | Output | Pattern Reference |
+|---|---|---|---|
+| 8.1 | Add `deleteTask(taskId: string)` async function to `app-context.tsx`: optimistic remove via `removeTaskOptimistic`, call `DELETE /api/tasks/${taskId}`, rollback on error + error toast, success toast on completion | `src/lib/context/app-context.tsx` | EditTaskModal optimistic pattern |
+| 8.2 | Create `DeleteTaskModal` component: wraps `ModalWrapper`, confirmation message with task title, Cancel (focus default) + Delete (red destructive) buttons, loading state on confirm button | `src/app/components/modals/DeleteTaskModal.tsx` | EditTaskModal + ModalWrapper |
+| 8.3 | Add `onDelete` prop to `TaskCard`: trash icon button next to edit button, `isAdmin && onDelete` guard, `aria-label="Delete task: {title}"` | Updated `TaskCard.tsx` | Existing edit button pattern |
+| 8.4 | Add `onDelete` prop to `KanbanColumn`: pass through to TaskCard | Updated `KanbanColumn.tsx` | Existing `onEdit` pass-through |
+| 8.5 | Wire up delete flow in `KanbanBoard`: add `deletingTask` state + `handleDelete`/`handleCloseDelete` callbacks, pass `onDelete` to columns, render `DeleteTaskModal` when `deletingTask` set | Updated `KanbanBoard.tsx` | Existing `editingTask` pattern |
+| 8.6 | Write unit tests: DeleteTaskModal renders correctly, Cancel closes, Delete calls `deleteTask`, loading state disables button | `src/lib/__tests__/delete-task-modal.test.tsx` | EditTaskModal test patterns |
+| 8.7 | Write integration test: click trash icon → modal opens → confirm → task removed from board | `src/lib/__tests__/task-delete-ui.test.tsx` | Existing integration patterns |
+| 8.8 | Run `npm run build` and `npm test` to verify no regressions | Build + test pass | — |
+
+**Implementation Notes:**
+- **`deleteTask` in app-context** encapsulates the full flow (optimistic → API → rollback/toast) so `DeleteTaskModal` stays thin — it just calls `deleteTask(id)` and closes
+- **No new hooks needed** — uses existing `removeTaskOptimistic`, `addToast`, and the `fetch` pattern from EditTaskModal
+- **No new API routes** — uses existing `DELETE /api/tasks/[id]`
+- **SSE redundancy** — `task_deleted` SSE event will also arrive, but `removeTaskOptimistic` already removed the task, so the SSE handler's `filter(t => t.id !== id)` is idempotent (no-op if already removed)
+- **Double-delete protection** — `deleteTask` should check if task still exists in state before calling API (defensive guard against race conditions)
+
+**Acceptance:**
+- Delete button (trash icon) visible only to admin users
+- Clicking delete opens confirmation modal with task title
+- Cancel / ESC closes modal without action
+- Confirm triggers optimistic remove + API call
+- API success: task removed, success toast shown
+- API failure: task restored to board, error toast shown with message
+- SSE `task_deleted` event handled gracefully (idempotent)
+- Keyboard: Tab to trash icon, Enter/Space opens modal, Tab within modal (Cancel focused by default), ESC closes
+- Screen reader: `aria-label` on delete button, `aria-describedby` on modal warning text
+- Build passes (`npm run build`)
+- All tests pass (`npm test`)
+
+---
+
 ## 2. Task-to-Backlog Mapping
 
 | Phase | Backlog Tasks | Dependencies |
@@ -192,6 +262,8 @@ The implementation is divided into 5 phases, ordered by dependency. Each phase p
 | Phase 4 | TSK-010 (Kanban), TSK-011 (Sidebar), TSK-012 (Theme), TSK-013 (Real-time client) | Phase 3 |
 | Phase 5 | TSK-014 (API docs) | Phase 4 |
 | Phase 6 | TSK-018 (User Authentication) | Phase 4 |
+| Phase 7 | TSK-020 (DELETE endpoint tests & docs) | Phase 6 |
+| Phase 8 | TSK-021 (Delete task button in UI) | Phase 7 |
 
 ---
 
@@ -209,6 +281,7 @@ The implementation is divided into 5 phases, ordered by dependency. Each phase p
 9. ✅ Online/offline connection indicator
 10. ✅ User authentication (email/password + JWT cookie) — TSK-018
 11. ✅ Role-based access control (admin/stakeholder/agent) — TSK-018
+12. Task delete button with confirmation (admin-only) — TSK-021
 
 ### Should Have (v1 if time permits)
 10. Subproject selector in header

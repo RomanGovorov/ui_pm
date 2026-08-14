@@ -7,6 +7,7 @@ import type { Task } from '@/lib/types';
 interface TaskCardProps {
   task: Task;
   onEdit?: (task: Task) => void;
+  onDelete?: (task: Task) => void;
 }
 
 /**
@@ -71,7 +72,7 @@ function getAvatarColor(name: string): string {
  * BUG-001: Static PRIORITY_CLASSES map (no dynamic dark: prefix).
  * PERF-OPT-002: useMemo for getAvatarColor and formatRelativeDate.
  */
-export function TaskCard({ task, onEdit }: TaskCardProps) {
+export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
   const { isAdmin } = useAuth();
   const priorityClasses = PRIORITY_CLASSES[task.priority] ?? PRIORITY_CLASSES['medium']!;
   const dotColor = PRIORITY_DOTS[task.priority] ?? PRIORITY_DOTS['medium']!;
@@ -95,17 +96,33 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
           <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} aria-hidden="true" />
           {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
         </span>
-        {isAdmin && onEdit && (
-          <button
-            type="button"
-            onClick={() => onEdit(task)}
-            className="rounded p-1 text-text-muted transition-colors hover:bg-bg-tertiary hover:text-text-primary"
-            aria-label={`Edit task: ${task.title}`}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-          </button>
+        {isAdmin && (onEdit || onDelete) && (
+          <div className="flex items-center gap-1">
+            {isAdmin && onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(task)}
+                className="rounded p-1 text-text-muted transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+                aria-label={`Edit task: ${task.title}`}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            )}
+            {isAdmin && onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(task)}
+                className="rounded p-1 text-text-muted transition-colors hover:bg-bg-tertiary hover:text-accent-red"
+                aria-label={`Delete task: ${task.title}`}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+          </div>
         )}
       </div>
 

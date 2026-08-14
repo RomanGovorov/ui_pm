@@ -32,7 +32,7 @@ npx @apidevtools/swagger-cli swagger.yaml openapi.yaml --port 8080
 | Tasks | POST | `/api/tasks` | Create a new task | Yes |
 | Tasks | GET | `/api/tasks/{id}` | Get task by ID | No |
 | Tasks | PUT | `/api/tasks/{id}` | Update task | Yes |
-| Tasks | DELETE | `/api/tasks/{id}` | Delete task | Yes |
+| Tasks | DELETE | `/api/tasks/{id}` | Delete task (admin/agent only; 403 for stakeholders) | Yes |
 | Subtasks | GET | `/api/projects/{id}/tasks` | List tasks for a project | No |
 | Users | GET | `/api/users` | List users (excluding API keys) | Yes (admin only) |
 | Users | POST | `/api/users` | Create a user | Yes |
@@ -108,6 +108,59 @@ All errors follow a consistent structure:
 | `RATE_LIMITED` | 429 | Too many requests |
 | `TOO_MANY_CONNECTIONS` | 503 | SSE connection limit reached |
 | `INTERNAL_ERROR` | 500 | Unexpected server error |
+
+## Task Delete Endpoint — Usage Examples
+
+The `DELETE /api/tasks/{id}` endpoint permanently removes a task. It accepts **dual authentication** (API key or JWT cookie) and enforces role-based access control.
+
+### Delete via API Key (Agent)
+
+```bash
+curl -X DELETE http://localhost:3000/api/tasks/<task-uuid> \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key-here"
+```
+
+Response on success:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### Delete via JWT Cookie (Browser User — Admin/Agent only)
+
+After login, the `auth_token` cookie is sent automatically:
+
+```javascript
+await fetch('/api/tasks/<task-uuid>', { method: 'DELETE', credentials: 'include' });
+```
+
+Or with curl using the cookie directly:
+
+```bash
+curl -X DELETE http://localhost:3000/api/tasks/<task-uuid> \
+  -H "Cookie: auth_token=<jwt-token>"
+```
+
+### Error Responses
+
+| Status | Scenario | Example |
+|--------|----------|---------|
+| `400` | Invalid UUID format | `"error": {"code": "VALIDATION_ERROR", "message": "Invalid input"}` |
+| `401` | Missing or invalid API key / JWT | `"error": {"code": "UNAUTHORIZED", "message": "Not authenticated"}` |
+| `403` | Stakeholder role (read-only) | `"error": {"code": "FORBIDDEN", "message": "Insufficient permissions"}` |
+| `404` | Task not found (P2025 mapped) | `"error": {"code": "NOT_FOUND", "message": "Task not found"}` |
+| `429` | Rate limit exceeded | `"error": {"code": "RATE_LIMITED", "message": "Too many requests"}` |
+
+### SSE Event
+
+On successful deletion, a `task_deleted` event is emitted to all connected SSE clients with payload `{ id: "<task-uuid>" }`.
+
+### Prisma Error Mapping
+
+Prisma's `P2025` (upsert/delete on non-existent record) is mapped to `404 NOT_FOUND` internally — raw Prisma errors never leak to the client.
 
 ## SSE (Server-Sent Events)
 

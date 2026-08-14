@@ -1,10 +1,10 @@
 # System Architecture — Project Manager UI v1
 
-**Version:** 1.3
+**Version:** 1.4
 **Author:** architecture-planner
 **Date:** 2026-08-13
-**Updated:** 2026-08-14 — Integrated TSK-018 Phase 1 audits: Security auth (17 findings), UI/UX auth (18 findings)
-**Status:** All Phase 1 audits aggregated, ready for code-implementer
+**Updated:** 2026-08-14 — TSK-020: DELETE endpoint tests & docs planning
+**Status:** TSK-020 — no specialized audits needed, proceeding to code-implementer
 **Audit aggregation:** Initial: Security (10), UI/UX (8), Data (8) | TSK-018: Security auth (17), UI/UX auth (18)
 
 ---

@@ -339,6 +339,22 @@ If you are a stakeholder and do not see the "Create Task" button, this is expect
 - A `task_updated` SSE event broadcasts the change to all connected clients in real time.
 - If the server returns an error (validation failure, network issue), the optimistic update reverts to the previous state.
 
+### Deleting Tasks
+
+**Admin and Agent users only.** A trash icon (🗑️) appears on every task card for users with write access. Stakeholders will not see the trash icon.
+
+1. Click the **trash icon** (🗑️) on any task card. A **confirmation dialog** opens asking you to confirm deletion.
+2. Click **"Delete"** to permanently remove the task, or **"Cancel"** to keep it.
+
+> ⚠️ **Warning**: Deleted tasks cannot be recovered. Always confirm before deleting.
+
+**How it works behind the scenes:**
+
+- Deletion is applied **optimistically** — the task card disappears immediately before the server confirms.
+- If the deletion fails (network issue, permission error), the task card reappears (rollback).
+- A `task_deleted` SSE event broadcasts the removal to all connected clients in real time.
+- The task is permanently removed from the database; no soft-delete or trash bin.
+
 ### Keyboard Shortcuts
 
 | Shortcut | Action |

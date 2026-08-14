@@ -94,6 +94,26 @@ curl -X PUT http://localhost:3000/api/tasks/<task-id> \
 
 Task edits (both UI and API) broadcast a `task_updated` SSE event to all connected clients. This ensures that Kanban boards across all active sessions reflect changes within milliseconds without requiring page refresh.
 
+### Delete Task Modal (UI)
+
+Admin and agent users can now permanently remove tasks directly from the Kanban board. A **trash icon** (🗑️) appears on every task card for users with write access; stakeholders do not see this icon.
+
+**How it works:**
+
+1. Click the **trash icon** (🗑️) on any task card. A confirmation dialog opens with Cancel/Delete buttons and a warning that deletion is irreversible.
+2. Click **"Delete"** to permanently remove the task, or **"Cancel"** to keep it.
+
+**Optimistic behavior:**
+
+- The task card disappears immediately upon confirmation (optimistic update).
+- If the server returns an error (permission denied, network failure), the task card reappears (rollback).
+- A `task_deleted` SSE event broadcasts the removal to all connected clients in real time.
+
+**Safety notes:**
+
+- There is no trash bin or soft-delete — deleted tasks are permanently removed from the database.
+- The confirmation dialog prevents accidental deletions by requiring explicit user action.
+
 ---
 
 ## Changes
@@ -103,14 +123,15 @@ Task edits (both UI and API) broadcast a `task_updated` SSE event to all connect
 | Component | File Path | Purpose |
 |-----------|-----------|---------|
 | `EditTaskModal.tsx` | `src/app/components/modals/EditTaskModal.tsx` | Edit task form with optimistic updates and validation |
+| `DeleteTaskModal.tsx` | `src/app/components/modals/DeleteTaskModal.tsx` | Delete confirmation dialog with warning and Cancel/Delete buttons |
 
 ### Frontend Components Updated
 
 | Component | Changes |
 |-----------|---------|
 | `CreateTaskModal.tsx` | Added Status dropdown (`in_work` / `review` / `done`) to creation form |
-| `TaskCard.tsx` | Added pencil icon (✏️) button, visible only for admin/agent roles; wired `onEdit` callback |
-| `KanbanBoard.tsx` | Added `editingTask` state + renders `EditTaskModal` when a task is selected for editing |
+| `TaskCard.tsx` | Added pencil icon (✏️) button and trash icon (🗑️), visible only for admin/agent roles; wired `onEdit` and `onDelete` callbacks |
+| `KanbanBoard.tsx` | Added `editingTask` state + renders `EditTaskModal`; added `deletingTaskId` state + renders `DeleteTaskModal` when deletion initiated |
 
 ### API Schema Updates
 
@@ -166,15 +187,20 @@ Existing API clients continue working — they simply don't send `status` during
 
 | Document | Path | Changes |
 |----------|------|---------|
-| Getting Started | [`docs/guides/user/getting-started.md`](../user/getting-started.md) | Added Status dropdown note, Editing Tasks section, API partial-update examples, Troubleshooting entries |
-| OpenAPI Spec | [`docs/guides/api/openapi.yaml`](../api/openapi.yaml) | Explicit `status` field documented in `CreateTaskRequest`; `UpdateTaskRequest` fully covers all editable fields |
-| Auth Reference | [`docs/guides/api/auth.md`](../api/auth.md) | Role table now references edit capability |
+| Getting Started | [`docs/guides/user/getting-started.md`](../user/getting-started.md) | Added Status dropdown note, Editing Tasks section, Deleting Tasks section, API partial-update examples, Troubleshooting entries |
+| OpenAPI Spec | [`docs/guides/api/openapi.yaml`](../api/openapi.yaml) | Explicit `status` field documented in `CreateTaskRequest`; `UpdateTaskRequest` fully covers all editable fields; DELETE endpoint has CookieAuth + 403 |
+| Auth Reference | [`docs/guides/api/auth.md`](../api/auth.md) | Role table now references delete capability |
+| API README | [`docs/guides/api/README.md`](../api/README.md) | Added DELETE endpoint usage examples (curl + fetch), error response table, Prisma P2025→404 mapping notes, SSE event emission for task deletion |
+| CHANGELOG | [`docs/guides/release-notes/CHANGELOG.md`](CHANGELOG.md) | TSK-020 entry under Testing, TSK-021 UI feature entry with frontend components and test details |
+| Troubleshooting | [`docs/guides/user/troubleshooting.md`](../user/troubleshooting.md) | Added "Delete Task Issues" section (delete button visibility, optimistic rollback, accidental deletion recovery) |
 
 ### Task ID Mapping
 
 | TSK | Feature | Status |
 |-----|---------|--------|
 | TSK-019 | Task editing & status selection | ✅ Complete |
+| TSK-020 | DELETE /api/tasks/{id} test coverage + OpenAPI spec update | ✅ Complete |
+| TSK-021 | Delete task button UI (trash icon + confirmation dialog) | ✅ Complete |
 
 ---
 
@@ -182,9 +208,11 @@ Existing API clients continue working — they simply don't send `status` during
 
 | Metric | Value |
 |--------|-------|
-| New components | 1 (`EditTaskModal`) |
+| New components | 2 (`EditTaskModal`, `DeleteTaskModal`) |
 | Modified components | 3 (`CreateTaskModal`, `TaskCard`, `KanbanBoard`) |
 | New API examples | 3 (partial update, multi-field update, clear description) |
+| Integration tests (DELETE endpoint) | 22 |
+| UI tests (delete modal) | 19 |
 | Breaking changes | 0 |
 | Database migrations | 0 |
 | Environment variables | 0 |

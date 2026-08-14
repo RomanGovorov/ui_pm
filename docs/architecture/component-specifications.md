@@ -1,9 +1,9 @@
 # Component Specifications — Project Manager UI v1
 
-**Version:** 1.3
+**Version:** 1.5
 **Author:** architecture-planner
 **Date:** 2026-08-13
-**Updated:** 2026-08-14 — Integrated TSK-018 Phase 1 audits: SSE auth, registration anti-enumeration, JWT startup validation, admin routes, audit logging, password blocklist, FOUC prevention, role-based ARIA
+**Updated:** 2026-08-14 — §2.6 TaskCard delete button, §2.7.3 DeleteTaskModal (TSK-021)
 
 ---
 
@@ -218,18 +218,28 @@ interface KanbanColumnProps {
 ### 2.6 TaskCard
 
 **Type:** Client Component
-**Responsibility:** Individual task card with priority, title, description, assignee, date.
+**Responsibility:** Individual task card with priority, title, description, assignee, date, and admin actions (edit/delete).
 
 **Props:**
 ```typescript
 interface TaskCardProps {
   task: Task;
+  onEdit?: (task: Task) => void;
+  onDelete?: (task: Task) => void;
 }
 ```
 
+**Admin Actions (TSK-021):**
+- Edit button (pencil icon) — `isAdmin && onEdit` guard (existing, TSK-019)
+- Delete button (trash icon) — `isAdmin && onDelete` guard (new, TSK-021)
+- Both buttons are in a flex row in the top-right area of the priority badge row
+- Both buttons share identical styling: `rounded p-1 text-text-muted transition-colors hover:bg-bg-tertiary hover:text-text-primary`
+- Delete button uses trash SVG icon (Heroicons outline style)
+- `aria-label="Delete task: ${task.title}"`
+
 **Visual Spec:**
 - Rounded card with border
-- Priority badge (colored: red/yellow/green)
+- Priority badge (colored: red/yellow/green) + admin action buttons (right side)
 - Title (bold, 14px)
 - Description (gray, truncated to 2 lines via `line-clamp-2`)
 - Footer: assignee avatar (initials) + name + relative date
@@ -289,6 +299,44 @@ interface TaskCardProps {
 **Behavior:**
 1. On submit → `POST /api/projects` with form data
 2. On success → add to projects list, switch to new project, close modal
+
+### 2.7.3 DeleteTaskModal (TSK-021)
+
+**Type:** Client Component
+**Responsibility:** Confirmation dialog for destructive task deletion. Wraps in `ModalWrapper`.
+
+**Props:**
+```typescript
+interface DeleteTaskModalProps {
+  task: Task;
+  onClose: () => void;
+}
+```
+
+**Behavior:**
+1. Display warning: "Are you sure you want to delete \"{task.title}\"? This action cannot be undone."
+2. Two buttons: **Cancel** (secondary) and **Delete** (destructive — red)
+3. On "Delete" click:
+   - Set `deleting` state to true (disable button, show spinner)
+   - Call `deleteTask(task.id)` from app-context
+   - On success: close modal, show success toast
+   - On error: close modal (error toast shown by `deleteTask` internally)
+4. On "Cancel" or ESC: close modal without action
+
+**Accessibility:**
+- Focus trap via `ModalWrapper` (inherited)
+- ESC closes modal (inherited)
+- Cancel button receives initial focus (safe default — not the destructive action)
+- `aria-describedby` pointing to the warning text
+- Delete button: `aria-label="Confirm delete task: {task.title}"`
+
+**Visual Spec:**
+- No form fields — simple confirmation layout
+- Warning icon (exclamation triangle, `text-accent-red`)
+- Task title displayed in bold within the warning message
+- Cancel button: standard secondary style (`text-text-secondary hover:bg-bg-tertiary`)
+- Delete button: destructive style (`bg-accent-red text-white hover:bg-red-700`)
+- Buttons right-aligned, gap-3
 
 ### 2.8 Toast Notifications (NEW — UI-PHASE1-004, UI-PHASE1-008)
 
@@ -1022,6 +1070,133 @@ export function logAuthEvent(event: {
 
 ---
 
+## 5.12 DELETE Task Endpoint — Test Component Specification (TSK-020)
+
+**Scope:** Test coverage for the existing `DELETE /api/tasks/[id]` endpoint. No implementation changes — only test and documentation artifacts.
+
+### Existing Components Under Test
+
+| Component | File | Responsibility |
+|---|---|---|
+| DELETE handler | `src/app/api/tasks/[id]/route.ts` (L73–95) | UUID validation via Zod, calls `taskService.delete()`, error handling via `handleApiError` |
+| Task service | `src/lib/services/task-service.ts` (L91–98) | `prisma.task.delete()`, emits `task_deleted` SSE event with `{ id }` |
+| Middleware | `src/middleware.ts` | Auth gate: DELETE in `isWrite` array → 401 (unauth), 403 (stakeholder), pass (admin/agent) |
+| Error handler | `src/lib/errors.ts` | Maps Prisma P2025 → 404 NOT_FOUND, sanitizes messages |
+| Event bus | `src/lib/events/event-bus.ts` | `emitTaskEvent('task_deleted', { id })` |
+
+### Test File: `src/lib/__tests__/task-delete-api.test.ts`
+
+**Test categories and expected assertions:**
+
+#### A. Static Analysis (route handler structure)
+
+```typescript
+// Pattern: read source, assert key patterns exist
+const routeSource = fs.readFileSync(routeFilePath, 'utf-8');
+
+// A1: DELETE function exported
+expect(routeSource).toContain('export async function DELETE');
+
+// A2: UUID validation present
+expect(routeSource).toContain('uuidSchema.safeParse');
+
+// A3: Error handling consistent
+expect(routeSource).toContain('handleApiError');
+
+// A4: Calls taskService.delete
+expect(routeSource).toContain('taskService.delete');
+```
+
+#### B. UUID Validation (unit test)
+
+```typescript
+// Direct Zod schema test — no DB needed
+import { z } from 'zod';
+const uuidSchema = z.string().uuid();
+
+// B1: Valid UUID accepted
+expect(uuidSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(true);
+
+// B2: Empty string rejected
+expect(uuidSchema.safeParse('').success).toBe(false);
+
+// B3: Non-UUID string rejected
+expect(uuidSchema.safeParse('not-a-uuid').success).toBe(false);
+
+// B4: SQL injection attempt rejected
+expect(uuidSchema.safeParse("'; DROP TABLE tasks; --").success).toBe(false);
+```
+
+#### C. Error Mapping (unit test — delete not found)
+
+```typescript
+// C1: Prisma P2025 → 404 NOT_FOUND
+// Use Prisma.PrismaClientKnownRequestError constructor (try/catch for import safety)
+const prismaError = new Prisma.PrismaClientKnownRequestError('Record not found', {
+  code: 'P2025', meta: {}, clientVersion: '0.0.0',
+});
+const { statusCode, body } = handleApiError(prismaError);
+expect(statusCode).toBe(404);
+expect(body.error.code).toBe('NOT_FOUND');
+```
+
+#### D. SSE Event Emission (unit test)
+
+```typescript
+// D1: task_deleted emitted with { id } payload
+import { eventBus } from '@/lib/events/event-bus';
+
+const received: unknown[] = [];
+eventBus.on('task_deleted', (payload) => received.push(payload));
+eventBus.emitTaskEvent('task_deleted', { id: 'test-uuid' });
+expect(received).toHaveLength(1);
+expect(received[0]).toEqual({ id: 'test-uuid' });
+eventBus.removeAllListeners('task_deleted');
+```
+
+#### E. Middleware Auth (static analysis)
+
+```typescript
+// E1: DELETE in isWrite methods
+expect(middlewareSource).toContain("'DELETE'");
+expect(middlewareSource).toContain("isWrite");
+
+// E2: Stakeholder → 403 for write ops
+expect(middlewareSource).toContain("auth.role === 'stakeholder'");
+expect(middlewareSource).toContain("'FORBIDDEN'");
+expect(middlewareSource).toContain("'Read-only access'");
+
+// E3: Unauthenticated → 401
+expect(middlewareSource).toContain("'UNAUTHORIZED'");
+expect(middlewareSource).toContain("'Authentication required'");
+```
+
+### OpenAPI Spec Update
+
+The DELETE `/tasks/{id}` operation already exists in `openapi.yaml` (L1335–1380). Required changes:
+
+1. **Add `CookieAuth` to security schemes** alongside `ApiKeyAuth`:
+   ```yaml
+   security:
+     - ApiKeyAuth: []
+     - CookieAuth: []
+   ```
+2. **Add 403 response** for stakeholder forbidden:
+   ```yaml
+   "403":
+     description: Forbidden — stakeholder role cannot delete
+     content:
+       application/json:
+         schema:
+           $ref: "#/components/schemas/ErrorBody"
+         example:
+           error:
+             code: FORBIDDEN
+             message: "Read-only access"
+   ```
+
+---
+
 ## 6. Non-Functional Specifications
 
 | Aspect | Specification |
@@ -1030,7 +1205,7 @@ export function logAuthEvent(event: {
 | ESLint | `@typescript-eslint` + Next.js config |
 | Prettier | Standard config |
 | Component testing | Vitest + React Testing Library |
-| API testing | Vitest + supertest |
+| API testing | Vitest (static analysis + unit tests) |
 | CSS approach | Tailwind CSS v4 with dark/light classes |
 | Theme default | Dark (`class="dark"` on `<html>`) |
 | Font | System font stack or Inter via `next/font` |

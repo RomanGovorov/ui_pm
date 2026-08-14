@@ -21,6 +21,8 @@
 | TSK-017 | User guides & runbooks | SHOULD HAVE | DONE | tech-docs-writer | 2026-08-13 | 2026-08-13 |
 | TSK-018 | User authentication (email/password) | MUST HAVE | DONE | project-manager | 2026-08-14 | 2026-08-14 |
 | TSK-019 | Task editing and status selection | MUST HAVE | DONE | project-manager | 2026-08-14 | 2026-08-14 |
+| TSK-020 | DELETE endpoint for tasks — tests & docs | SHOULD HAVE | DONE | project-manager | 2026-08-14 | 2026-08-14 |
+| TSK-021 | Delete task button in UI | MUST HAVE | DONE | project-manager | 2026-08-14 | 2026-08-14 |
 
 ---
 
@@ -28,58 +30,28 @@
 
 | Stage | Progress | Notes |
 |-------|----------|-------|
-| Planning | 100% | Architecture + 5 ADRs complete |
-| Phase 1 Audits | 100% | 27 findings (10 sec, 9 UI, 8 data) — all resolved |
-| Implementation | 100% | 46 source files, 9 API endpoints, 12 UI components |
-| Testing | 100% | 81 tests, >80% coverage, 3 bugs fixed |
-| Deployment | 100% | Docker, CI/CD, monitoring deployed |
-| Documentation | 100% | OpenAPI, user guides, runbooks, changelog |
-
-## Definition of Done — Final Check
-
-- [x] Стейкхолдер открывает дашборд и видит актуальные задачи на канбан-доске
-- [x] Агент создаёт задачу через API — она появляется на доске без перезагрузки (SSE)
-- [x] Агент меняет статус задачи через API — карточка перемещается в нужную колонку
-- [x] Работает переключение между проектами
-- [x] Тёмная тема применяется по умолчанию
-- [x] API документирован (OpenAPI / Swagger)
-- [x] Test coverage > 80%
-- [x] Zero critical vulnerabilities (10 findings identified and resolved)
-
----
-
-| TSK-018 | User authentication (email/password) | MUST HAVE | DONE | project-manager → architecture-planner → tech-docs-writer | 2026-08-14 | 2026-08-14 |
-| TSK-019 | Task editing and status selection | MUST HAVE | DONE | project-manager → architecture-planner → tech-docs-writer | 2026-08-14 | 2026-08-14 |
-
----
-
-## Project Status
-
-| Stage | Progress | Notes |
-|-------|----------|-------|
-| v1 — Core MVP | 100% | 17 tasks completed, workflow finished 2026-08-14 |
-| v1.1 — Authentication | 100% | TSK-018 complete: 145 tests, 17+18 findings resolved, docs written |
+| v1.4 — Delete Task UI | 100% | TSK-021 complete: 41 tests PASS, full workflow, all stages PASS |
+| v1.3 — DELETE Endpoint Tests | 100% | TSK-020 complete: 22 tests, OpenAPI updated, all stages PASS |
 | v1.2 — Task Editing | 100% | TSK-019 complete: 62 tests, 7 code changes, 5 docs updated |
+| v1.1 — Authentication | 100% | TSK-018 complete: 145 tests, 17+18 findings resolved, docs written |
+| v1 — Core MVP | 100% | 17 tasks completed, workflow finished 2026-08-14 |
 
-## Definition of Done — v1.1 Final Check
+## Definition of Done — v1.4 Final Check
 
-- [x] User can register with email + password + confirm password
-- [x] User can login with email + password
-- [x] JWT stored in httpOnly cookie (7-day expiry)
-- [x] Admin role has full access (create/edit/delete)
-- [x] Stakeholder role has read-only access (write → 403)
-- [x] Agent with API_KEY retains full access (backward compatible)
-- [x] Unauthenticated users redirected to /login
-- [x] Sidebar/Header show/hide action buttons based on role
-- [x] Build passes, tests pass (145 tests)
-- [x] Security audit: 17 findings resolved, 0 critical
-- [x] UI/UX audit: 18 findings resolved, 0 WCAG AA violations
-- [x] Performance: all SLOs met
-- [x] Documentation: API reference, user guides, troubleshooting, release notes
+- [x] Delete button (trash icon) appears next to edit button in TaskCard — admin-only
+- [x] Confirmation modal with focus trap, ESC, scroll lock
+- [x] Optimistic update with error rollback
+- [x] SSE `task_deleted` event confirms removal
+- [x] Proper aria-labels, keyboard navigation
+- [x] 41 tests PASS, 0 regressions
+- [x] Code review PASS (0 critical, 0 high)
+- [x] Performance analysis PASS (no bottlenecks)
+- [x] No infrastructure changes needed
+- [x] Documentation complete
 
 ---
 
-## Workflow Status: ✅ v1.2 COMPLETE
+## Workflow Status: ✅ v1.4 COMPLETE
 
-TSK-019 completed 2026-08-14. All acceptance criteria met.
-Full workflow: architecture-planner → security-auditor → ui-ux-accessibility-specialist → code-implementer → code-reviewer → comprehensive-test-engineer → performance-analyst → devops-infrastructure-engineer → tech-docs-writer → project-manager.
+TSK-021 completed 2026-08-14. All acceptance criteria met.
+Full workflow: architecture-planner → code-implementer → code-reviewer → comprehensive-test-engineer → performance-analyst → devops-infrastructure-engineer → tech-docs-writer → project-manager.

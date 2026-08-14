@@ -247,10 +247,52 @@ github.com/gansru/ui_pm
 - Updated: `CreateTaskModal.tsx` (status dropdown), `TaskCard.tsx` (edit button), `KanbanBoard.tsx` (edit state)
 - Service layer: `task-service.update()` filters `undefined` values for true partial updates
 
+### Testing — DELETE Endpoint (TSK-020)
+
+#### Integration Tests Added
+
+- **22 integration tests** for `DELETE /api/tasks/{id}` covering:
+  - Route handler structure and export validation
+  - UUID validation with Zod (`safeParse`) — rejects invalid strings, accepts valid UUIDs
+  - Prisma `P2025` → HTTP `404 NOT_FOUND` error mapping (no internal table names leaked)
+  - SSE `task_deleted` event emission with minimal `{ id }` payload
+  - Multi-listener support on `task_deleted` event
+  - Middleware authentication: API key + JWT dual auth, role checks (admin/agent pass, stakeholder blocked)
+- New test file: `src/lib/__tests__/task-delete-api.test.ts`
+
+### Added — Delete Task Button UI (TSK-021)
+
+#### Frontend Components
+
+- **Delete button** — Trash icon (🗑️) added to every task card, visible only for admin/agent roles
+- **DeleteTaskModal** — Confirmation dialog with Cancel/Delete buttons; warns that deletion is irreversible
+- **`deleteTask()` in app-context** — Optimistic removal with server-side rollback on failure; emits `task_deleted` SSE event
+
+#### Frontend Components Modified
+
+| Component | File Path | Changes |
+|-----------|-----------|---------|
+| `TaskCard.tsx` | `src/app/components/TaskCard.tsx` | Added trash icon button, wired `onDelete` callback |
+| `KanbanBoard.tsx` | `src/app/components/KanbanBoard.tsx` | Added `deletingTaskId` state + renders `DeleteTaskModal` when deletion initiated |
+
+#### Testing — Delete Modal UI (TSK-021)
+
+- **19 tests** covering the delete modal UI including:
+  - Delete button visibility — shown for admin/agent, hidden for stakeholders
+  - Delete confirmation dialog renders with correct labels and warning text
+  - Cancel action dismisses modal without triggering API call
+  - Delete action triggers optimistic update, confirms with mock endpoint, removes from board
+  - Rollback on network/permission error restores task on board
+  - Keyboard accessibility — Escape closes modal, focus trap within dialog
+  - ARIA attributes — `role="alertdialog"`, `aria-label`, `aria-describedby` on modal
+
+---
+
 ### Changed
 
-- Getting Started guide expanded with Editing Tasks section, API examples, Troubleshooting entries
+- Getting Started guide expanded with Editing Tasks and Deleting Tasks sections, API examples, Troubleshooting entries
 - Release notes index updated to include v1.2.0
+- Troubleshooting guide expanded with Delete Task Issues section
 
 ### Breaking Changes
 

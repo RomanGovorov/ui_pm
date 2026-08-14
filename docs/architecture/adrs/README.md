@@ -11,6 +11,9 @@ This directory contains Architecture Decision Records (ADRs) for Project Manager
 | [ADR-003](ADR-003_prisma-schema-design.md) | Prisma Schema Design | Accepted | 2026-08-13 |
 | [ADR-004](ADR-004_rest-api-design.md) | REST API Design | Accepted | 2026-08-13 |
 | [ADR-005](ADR-005_api-key-auth-for-agent.md) | Static API Key Authentication for Agent | Accepted | 2026-08-13 |
+| [ADR-006](ADR-006_rate-limiting-in-v1.md) | Rate Limiting Strategy for v1 | Accepted | 2026-08-13 |
+| [ADR-007](ADR-007_jwt-authentication.md) | JWT Authentication for Browser Users | Accepted | 2026-08-13 |
+| [ADR-008](ADR-008_task-delete-confirmation-pattern.md) | Task Delete Confirmation with Optimistic Update | Accepted | 2026-08-14 |
 
 ## ADR Template
 

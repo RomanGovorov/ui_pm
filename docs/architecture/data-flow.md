@@ -1,9 +1,9 @@
 # Data Flow Diagram — Project Manager UI v1
 
-**Version:** 1.2
+**Version:** 1.3
 **Author:** architecture-planner
 **Date:** 2026-08-13
-**Updated:** 2026-08-14 — Updated SSE flow with auth (AUTH-001), registration anti-enumeration (AUTH-002), middleware decision logic with admin routes + exact path matching
+**Updated:** 2026-08-14 — Added DELETE task flow (TSK-020), SSE auth, middleware decision logic
 
 ---
 
@@ -67,6 +67,68 @@
 6. EventBus pushes event to all active SSE connections
 7. Route handler returns 201 (created) or 200 (updated) with the entity JSON
 8. Browser clients receive SSE event and update React state → UI re-renders
+
+### 2.1a Agent/Admin Deletes a Task (DELETE Path — TSK-020)
+
+```
+┌──────────┐     DELETE /api/tasks/:id    ┌──────────────┐
+│ AI Agent │ ───────────────────────────→ │ Middleware    │
+│ or Admin │  X-API-Key / JWT cookie      │ (auth gate)  │
+└──────────┘                              └──────┬───────┘
+                                                 │
+                          ┌──────────────────────┼────────────────────┐
+                          │                      │                    │
+                     unauth                  stakeholder        admin/agent
+                     → 401                   → 403              → pass
+                          │                      │                    │
+                          │                      │                    ▼
+                          │                      │            ┌──────────────┐
+                          │                      │            │ Route Handler│
+                          │                      │            │ UUID check   │
+                          │                      │            │ (Zod)        │
+                          │                      │            └──────┬───────┘
+                          │                      │                   │
+                          │                      │              invalid UUID
+                          │                      │              → 400 response
+                          │                      │                   │
+                          │                      │              valid UUID
+                          │                      │                   ▼
+                          │                      │            ┌──────────────┐
+                          │                      │            │ taskService  │
+                          │                      │            │ .delete(id)  │
+                          │                      │            └──────┬───────┘
+                          │                      │                   │
+                          │                      │              ┌────┴────┐
+                          │                      │              │         │
+                          │                      │           found    not found
+                          │                      │              │     (P2025)
+                          │                      │              │         │
+                          │                      │              ▼         ▼
+                          │                      │      ┌──────────┐ ┌──────────────┐
+                          │                      │      │EventBus  │ │handleApiError│
+                          │                      │      │task_     │ │→ 404         │
+                          │                      │      │deleted   │ │NOT_FOUND     │
+                          │                      │      └────┬─────┘ └──────┬───────┘
+                          │                      │           │              │
+                          │                      │           ▼              ▼
+                          │                      │    SSE broadcast    404 response
+                          │                      │    { id }           to client
+                          │                      │           │
+                          │                      │           ▼
+                          │                      │    200 { id }
+                          │                      │    to client
+```
+
+**Sequence:**
+1. Agent/Admin sends `DELETE /api/tasks/:id` with auth (API key or JWT cookie)
+2. Middleware checks auth → 401 if missing, 403 if stakeholder role, passes admin/agent
+3. Route handler validates `:id` with `z.string().uuid()` → 400 if invalid format
+4. `taskService.delete(id)` calls `prisma.task.delete({ where: { id } })`
+5. **Not found**: Prisma throws P2025 → `handleApiError` maps to 404 NOT_FOUND
+6. **Found**: Prisma deletes record → service returns `{ id }`
+7. EventBus emits `task_deleted` with minimal payload `{ id }`
+8. All SSE-connected clients receive the event → remove task from UI state
+9. Route handler returns `200 { id }` to caller
 
 ### 2.2 Stakeholder Views Dashboard (Read Path)
 

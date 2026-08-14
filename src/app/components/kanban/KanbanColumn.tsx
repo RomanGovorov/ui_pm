@@ -9,12 +9,13 @@ interface KanbanColumnProps {
   color: string;
   tasks: Task[];
   onEdit?: (task: Task) => void;
+  onDelete?: (task: Task) => void;
 }
 
 /**
  * KanbanColumn — single status column with header and task cards.
  */
-export function KanbanColumn({ status, title, color, tasks, onEdit }: KanbanColumnProps) {
+export function KanbanColumn({ status, title, color, tasks, onEdit, onDelete }: KanbanColumnProps) {
   const columnId = `column-${status}`;
 
   return (
@@ -61,7 +62,7 @@ export function KanbanColumn({ status, title, color, tasks, onEdit }: KanbanColu
             <p className="text-xs">No tasks</p>
           </div>
         ) : (
-          tasks.map((task) => <TaskCard key={task.id} task={task} onEdit={onEdit} />)
+          tasks.map((task) => <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} />)
         )}
       </div>
     </section>

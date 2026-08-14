@@ -169,6 +169,7 @@ Dual authentication system:
 - Vitest with jsdom environment
 - Path alias `@/` maps to `src/`
 - Setup file: `src/test/setup.ts`
+- **DELETE endpoint coverage**: 22 tests in `task-delete-api.test.ts` (static analysis + runtime)
 
 ## Language
 

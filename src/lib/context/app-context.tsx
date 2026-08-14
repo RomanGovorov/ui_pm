@@ -32,6 +32,7 @@ interface AppContextValue extends AppState {
   addTaskOptimistic: (task: Task) => void;
   removeTaskOptimistic: (taskId: string) => void;
   updateTaskOptimistic: (taskId: string, updates: Partial<Task>) => void;
+  deleteTask: (taskId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -113,6 +114,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const deleteTask = useCallback(
+    async (taskId: string) => {
+      // Snapshot for rollback
+      const snapshot = tasks.find((t) => t.id === taskId);
+
+      // Optimistic remove
+      removeTaskOptimistic(taskId);
+
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`, {
+          method: 'DELETE',
+          headers: { 'X-API-Key': 'ui-internal-call' },
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error?.message ?? 'Failed to delete task');
+        }
+
+        // SSE task_deleted will arrive but is idempotent (filter by id)
+        addToast('success', 'Task deleted');
+      } catch (err) {
+        // Rollback: re-add the task to state
+        if (snapshot) {
+          setTasks((prev) => {
+            if (prev.some((t) => t.id === taskId)) return prev;
+            return [...prev, snapshot];
+          });
+        }
+        addToast('error', err instanceof Error ? err.message : 'Failed to delete task');
+      }
+    },
+    [tasks, removeTaskOptimistic, addToast],
+  );
+
   const value: AppContextValue = {
     projects,
     tasks,
@@ -136,6 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addTaskOptimistic,
     removeTaskOptimistic,
     updateTaskOptimistic,
+    deleteTask,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
