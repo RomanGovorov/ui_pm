@@ -17,6 +17,7 @@ export function Header() {
   const currentProject = projects.find((p) => p.id === currentProjectId) ?? null;
   const projectTasks = tasks.filter((t) => t.projectId === currentProjectId);
 
+  const backlogCount = projectTasks.filter((t) => t.status === 'backlog').length;
   const inWorkCount = projectTasks.filter((t) => t.status === 'in_work').length;
   const reviewCount = projectTasks.filter((t) => t.status === 'review').length;
   const doneCount = projectTasks.filter((t) => t.status === 'done').length;
@@ -45,6 +46,10 @@ export function Header() {
         <div className="flex items-center gap-4">
           {/* Status counts */}
           <div className="flex items-center gap-3" aria-label="Task statistics">
+            <span className="flex items-center gap-1.5 text-xs text-text-secondary">
+              <span className="h-2 w-2 rounded-full bg-purple-500" aria-hidden="true" />
+              {backlogCount}
+            </span>
             <span className="flex items-center gap-1.5 text-xs text-text-secondary">
               <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
               {inWorkCount}

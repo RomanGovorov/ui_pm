@@ -320,6 +320,6 @@ describe('TSK-019 — source code verification', () => {
   it('createTaskSchema accepts explicit status values', () => {
     const validatorPath = path.join(__dirname, '..', 'validators', 'task.ts');
     const src = fs.readFileSync(validatorPath, 'utf-8');
-    expect(src).toContain("z.enum(['in_work', 'review', 'done'])");
+    expect(src).toContain("z.enum(['backlog', 'in_work', 'review', 'done'])");
   });
 });

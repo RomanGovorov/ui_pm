@@ -57,7 +57,7 @@ describe('createTaskSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('defaults status to in_work', () => {
+  it('defaults status to backlog', () => {
     const result = createTaskSchema.safeParse({
       projectId: validInput.projectId,
       title: validInput.title,
@@ -65,12 +65,12 @@ describe('createTaskSchema', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.status).toBe('in_work');
+      expect(result.data.status).toBe('backlog');
     }
   });
 
   it('accepts explicit status values', () => {
-    for (const status of ['in_work', 'review', 'done'] as const) {
+    for (const status of ['backlog', 'in_work', 'review', 'done'] as const) {
       const result = createTaskSchema.safeParse({ ...validInput, status });
       expect(result.success).toBe(true);
       if (result.success) {

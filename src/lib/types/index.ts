@@ -1,4 +1,4 @@
-export type TaskStatus = 'in_work' | 'review' | 'done';
+export type TaskStatus = 'backlog' | 'in_work' | 'review' | 'done';
 export type TaskPriority = 'high' | 'medium' | 'low';
 export type UserRole = 'admin' | 'stakeholder' | 'agent';
 

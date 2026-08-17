@@ -52,21 +52,22 @@ describe('CreateTaskModal — status dropdown', () => {
     global.fetch = vi.fn();
   });
 
-  it('renders status dropdown with default "in_work"', async () => {
+  it('renders status dropdown with default "backlog"', async () => {
     const { CreateTaskModal: CTM } = await import('@/app/components/modals/CreateTaskModal');
     render(<CTM projectId="proj-1" onClose={onClose} />);
 
     const statusSelect = screen.getByLabelText(/Status/i) as HTMLSelectElement;
     expect(statusSelect).toBeInTheDocument();
-    expect(statusSelect.value).toBe('in_work');
+    expect(statusSelect.value).toBe('backlog');
   });
 
-  it('shows all 3 status options: in_work, review, done', async () => {
+  it('shows all 4 status options: backlog, in_work, review, done', async () => {
     const { CreateTaskModal: CTM } = await import('@/app/components/modals/CreateTaskModal');
     render(<CTM projectId="proj-1" onClose={onClose} />);
 
     const statusSelect = screen.getByLabelText(/Status/i) as HTMLSelectElement;
     const options = Array.from(statusSelect.options).map((o) => o.value);
+    expect(options).toContain('backlog');
     expect(options).toContain('in_work');
     expect(options).toContain('review');
     expect(options).toContain('done');
@@ -111,7 +112,7 @@ describe('CreateTaskModal — status dropdown', () => {
     });
   });
 
-  it('create submission defaults status to in_work when not changed', async () => {
+  it('create submission defaults status to backlog when not changed', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ id: 'new-task-id' }),
@@ -128,7 +129,7 @@ describe('CreateTaskModal — status dropdown', () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/tasks', expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"status":"in_work"'),
+        body: expect.stringContaining('"status":"backlog"'),
       }));
     });
   });
@@ -152,7 +153,7 @@ describe('CreateTaskModal — status dropdown', () => {
     expect(mockAddTaskOptimistic).toHaveBeenCalled();
     const addedTask = mockAddTaskOptimistic.mock.calls[0][0] as Task;
     expect(addedTask.projectId).toBe('proj-1');
-    expect(addedTask.status).toBe('in_work');
+    expect(addedTask.status).toBe('backlog');
     expect(addedTask.title).toBe('Optimistic task');
   });
 

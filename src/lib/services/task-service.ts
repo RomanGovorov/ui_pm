@@ -58,7 +58,7 @@ export const taskService = {
         subprojectId: data.subprojectId ?? null,
         title: data.title,
         description: data.description ?? null,
-        status: data.status ?? 'in_work',
+        status: data.status ?? 'backlog',
         priority: data.priority,
         assignee: data.assignee,
       },

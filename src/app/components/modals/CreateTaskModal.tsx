@@ -19,7 +19,7 @@ export function CreateTaskModal({ projectId, onClose }: CreateTaskModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
-  const [status, setStatus] = useState<TaskStatus>('in_work');
+  const [status, setStatus] = useState<TaskStatus>('backlog');
   const [assignee, setAssignee] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -171,6 +171,7 @@ export function CreateTaskModal({ projectId, onClose }: CreateTaskModalProps) {
             onChange={(e) => setStatus(e.target.value as TaskStatus)}
             className="w-full rounded-lg border border-border-primary bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none transition-colors focus:border-accent-blue"
           >
+            <option value="backlog">Backlog</option>
             <option value="in_work">In Work</option>
             <option value="review">Review</option>
             <option value="done">Done</option>

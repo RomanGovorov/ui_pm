@@ -86,6 +86,7 @@ describe('Task status transitions are type-safe', () => {
   it('TaskStatus enum covers all kanban columns', () => {
     const typesPath = path.join(SRC_ROOT, 'types', 'index.ts');
     const source = fs.readFileSync(typesPath, 'utf-8');
+    expect(source).toContain('backlog');
     expect(source).toContain('in_work');
     expect(source).toContain('review');
     expect(source).toContain('done');
@@ -95,6 +96,7 @@ describe('Task status transitions are type-safe', () => {
     const validatorPath = path.join(SRC_ROOT, 'validators', 'task.ts');
     const source = fs.readFileSync(validatorPath, 'utf-8');
     expect(source).toContain('z.enum');
+    expect(source).toContain('backlog');
     expect(source).toContain('in_work');
     expect(source).toContain('review');
     expect(source).toContain('done');

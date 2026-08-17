@@ -8,13 +8,14 @@ import { DeleteTaskModal } from '@/app/components/modals/DeleteTaskModal';
 import type { Task, TaskStatus } from '@/lib/types';
 
 const COLUMNS: { status: TaskStatus; title: string; color: string }[] = [
+  { status: 'backlog', title: 'Backlog', color: 'bg-purple-500' },
   { status: 'in_work', title: 'In Work', color: 'bg-blue-500' },
   { status: 'review', title: 'Review', color: 'bg-amber-500' },
   { status: 'done', title: 'Done', color: 'bg-green-500' },
 ];
 
 /**
- * KanbanBoard — 3-column board grouping tasks by status.
+ * KanbanBoard — 4-column board grouping tasks by status.
  * UI-008: Shows skeleton loading state.
  */
 export function KanbanBoard() {
@@ -53,6 +54,7 @@ export function KanbanBoard() {
       : tasks;
 
     const result: Record<TaskStatus, Task[]> = {
+      backlog: [],
       in_work: [],
       review: [],
       done: [],
@@ -66,7 +68,7 @@ export function KanbanBoard() {
   if (loading) {
     return (
       <div className="flex flex-1 gap-5 overflow-x-auto p-6" role="status" aria-label="Loading tasks">
-        {[1, 2, 3].map((i) => (
+        {[1, 2, 3, 4].map((i) => (
           <div key={i} className="flex min-w-[280px] max-w-[380px] flex-1 flex-col">
             <div className="mb-4 h-6 w-24 skeleton rounded" />
             <div className="flex-1 space-y-3 rounded-xl border border-border-primary bg-bg-tertiary p-3">

@@ -59,6 +59,21 @@ async function main() {
     subprojectId?: string;
   }> = [
     {
+      title: 'Research competitor APIs',
+      description: 'Analyze REST API patterns from top 5 competitors',
+      status: 'backlog',
+      priority: 'low',
+      assignee: 'Bob',
+      subprojectId: subFrontend.id,
+    },
+    {
+      title: 'Plan Q3 roadmap',
+      description: 'Draft feature roadmap for Q3 planning session',
+      status: 'backlog',
+      priority: 'medium',
+      assignee: 'Diana',
+    },
+    {
       title: 'Implement user authentication',
       description: 'Set up JWT-based auth with refresh tokens',
       status: 'in_work',

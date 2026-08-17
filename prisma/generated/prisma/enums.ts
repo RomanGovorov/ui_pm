@@ -10,6 +10,7 @@
 */
 
 export const TaskStatus = {
+  backlog: 'backlog',
   in_work: 'in_work',
   review: 'review',
   done: 'done'

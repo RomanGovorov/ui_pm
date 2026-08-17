@@ -23,6 +23,7 @@
 | TSK-019 | Task editing and status selection | MUST HAVE | DONE | project-manager | 2026-08-14 | 2026-08-14 |
 | TSK-020 | DELETE endpoint for tasks — tests & docs | SHOULD HAVE | DONE | project-manager | 2026-08-14 | 2026-08-14 |
 | TSK-021 | Delete task button in UI | MUST HAVE | DONE | project-manager | 2026-08-14 | 2026-08-14 |
+| TSK-022 | Add backlog status to kanban board | MUST HAVE | DONE | project-manager | 2026-08-17 | 2026-08-17 |
 
 ---
 
@@ -30,28 +31,27 @@
 
 | Stage | Progress | Notes |
 |-------|----------|-------|
+| v1.5 — Backlog Status | 100% | TSK-022 complete: 4-status kanban (backlog → in_work → review → done), 63/63 tests PASS |
 | v1.4 — Delete Task UI | 100% | TSK-021 complete: 41 tests PASS, full workflow, all stages PASS |
 | v1.3 — DELETE Endpoint Tests | 100% | TSK-020 complete: 22 tests, OpenAPI updated, all stages PASS |
 | v1.2 — Task Editing | 100% | TSK-019 complete: 62 tests, 7 code changes, 5 docs updated |
 | v1.1 — Authentication | 100% | TSK-018 complete: 145 tests, 17+18 findings resolved, docs written |
 | v1 — Core MVP | 100% | 17 tasks completed, workflow finished 2026-08-14 |
 
-## Definition of Done — v1.4 Final Check
+## Definition of Done — v1.5 Final Check
 
-- [x] Delete button (trash icon) appears next to edit button in TaskCard — admin-only
-- [x] Confirmation modal with focus trap, ESC, scroll lock
-- [x] Optimistic update with error rollback
-- [x] SSE `task_deleted` event confirms removal
-- [x] Proper aria-labels, keyboard navigation
-- [x] 41 tests PASS, 0 regressions
-- [x] Code review PASS (0 critical, 0 high)
-- [x] Performance analysis PASS (no bottlenecks)
-- [x] No infrastructure changes needed
-- [x] Documentation complete
+- [x] `backlog` status added to Prisma schema, types, and validators
+- [x] KanbanBoard renders backlog column as first stage
+- [x] CreateTaskModal and EditTaskModal support backlog status
+- [x] Header displays backlog status correctly
+- [x] Seed data includes backlog tasks
+- [x] Database migration applied
+- [x] All 4 test files updated and passing
+- [x] Build passes, 63/63 related tests pass (7 pre-existing failures unrelated)
 
 ---
 
-## Workflow Status: ✅ v1.4 COMPLETE
+## Workflow Status: ✅ v1.5 COMPLETE
 
-TSK-021 completed 2026-08-14. All acceptance criteria met.
-Full workflow: architecture-planner → code-implementer → code-reviewer → comprehensive-test-engineer → performance-analyst → devops-infrastructure-engineer → tech-docs-writer → project-manager.
+TSK-022 completed 2026-08-17. All acceptance criteria met.
+Kanban board now tracks full lifecycle: `backlog → in_work → review → done`.

@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum TaskStatus {
+  backlog
   in_work
   review
   done
@@ -60,7 +61,7 @@ model Task {
   subprojectId String?      @map("subproject_id")
   title        String       @db.VarChar(200)
   description  String?      @db.VarChar(2000)
-  status       TaskStatus   @default(in_work)
+  status       TaskStatus   @default(backlog)
   priority     TaskPriority @default(medium)
   assignee     String       @db.VarChar(100)
   createdAt    DateTime     @default(now()) @map("created_at")
