@@ -45,7 +45,7 @@ services:
     environment:
       NODE_ENV: production  # Override .env for production deployment
     ports:
-      - "3000:3000"
+      - "3033:3000"
     depends_on:
       db:
         condition: service_healthy
