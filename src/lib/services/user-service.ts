@@ -91,4 +91,18 @@ export const userService = {
       createdAt: user.createdAt,
     };
   },
+
+  async updateRole(id: string, role: 'admin' | 'stakeholder' | 'agent') {
+    return prisma.user.update({
+      where: { id },
+      data: { role },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+  },
 };
