@@ -35,11 +35,11 @@ ENV NODE_ENV=production
 ENV APP_VERSION=${APP_VERSION}
 
 # LOW FIX (INFRA-012): Add standard OCI labels for container provenance
-LABEL org.opencontainers.image.source="https://github.com/gansru/ui_pm"
-LABEL org.opencontainers.image.revision="${APP_VERSION}"
-LABEL org.opencontainers.image.created=""
-LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.vendor="gansru"
+#LABEL org.opencontainers.image.source="https://github.com/gansru/ui_pm"
+#LABEL org.opencontainers.image.revision="${APP_VERSION}"
+#LABEL org.opencontainers.image.created=""
+#LABEL org.opencontainers.image.licenses="MIT"
+#LABEL org.opencontainers.image.vendor="gansru"
 
 # Install Prisma CLI locally for migrations (prisma/config module required)
 RUN npm install prisma@7 dotenv
